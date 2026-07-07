@@ -225,6 +225,9 @@
 
     let currentFormat = 'mp4';
 
+    // Paste your RapidAPI Key here inside the quotes:
+    const RAPID_API_KEY = "YOUR_RAPIDAPI_KEY_HERE";
+
     mp4Btn.addEventListener('click', () => {
         currentFormat = 'mp4';
         mp4Btn.classList.add('active');
@@ -246,58 +249,54 @@
 
     async function processMedia() {
         const rawUrl = urlInput.value.trim();
-        const videoQualitySetting = qualitySelect.value;
+        const qualitySetting = qualitySelect.value;
 
         if (!rawUrl) {
             updateStatus('Please input a valid web link source.', 'error');
             return;
         }
+        
+        if (RAPID_API_KEY === "29acdc973cmshdeac3b02d549dd2p186299jsne660f792939e") {
+            updateStatus('Missing RapidAPI Key assignment in the script code.', 'error');
+            return;
+        }
 
         goBtn.disabled = true;
-        updateStatus('Processing link data through extraction grid...', 'info');
+        updateStatus('Requesting conversion from secure residential node...', 'info');
 
         try {
-            // Send payload parameters directly to the distributed API engine
-            const response = await fetch('https://cobalt.tools', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ 
-                    url: rawUrl, 
-                    filenameStyle: 'classic',
-                    audioFormat: currentFormat === 'mp3' ? 'mp3' : 'best',
-                    downloadMode: currentFormat === 'mp3' ? 'audio' : 'auto',
-                    videoQuality: videoQualitySetting
-                })
+            // Determine the precise format query parameter required by NoTube
+            const formatParam = currentFormat === 'mp3' ? 'mp3' : qualitySetting;
+
+            // Hit the residential scraping cluster directly
+            const response = await fetch(`https://rapidapi.com{encodeURIComponent(rawUrl)}&format=${formatParam}`, {
+                method: 'GET',
+                headers: {
+                    'x-rapidapi-key': RAPID_API_KEY,
+                    'x-rapidapi-host': '://rapidapi.com'
+                }
             });
+
+            if (!response.ok) {
+                throw new Error('API engine rejected payload connection.');
+            }
 
             const result = await response.json();
 
-            // Intercept data status configurations safely
-            if (result.status === 'stream' || result.status === 'redirect' || result.url) {
-                updateStatus('Success! Initiating browser file download...', 'success');
-                const finalUrl = result.url;
-                
+            // Verify and extract the direct asset storage URL returned by the host
+            if (result && result.download_url) {
+                updateStatus('Conversion ready! Transferring file down to browser...', 'success');
+
                 const link = document.createElement('a');
-                link.href = finalUrl;
+                link.href = result.download_url;
                 link.setAttribute('download', '');
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-            } else if (result.status === 'picker' && result.picker) {
-                updateStatus('Success! Initiating browser file download...', 'success');
-                const finalUrl = result.picker[0].url || result.picker;
-                
-                const link = document.createElement('a');
-                link.href = finalUrl;
-                link.setAttribute('download', '');
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+
+                updateStatus('Saved to your local downloads folder.', 'success');
             } else {
-                throw new Error(result.text || 'The configuration engine failed to extract this source link.');
+                throw new Error(result.message || 'The proxy network was unable to parse this link currently.');
             }
 
         } catch (err) {
