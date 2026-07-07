@@ -1,12 +1,5 @@
 import play from 'play-dl';
 
-// Force play-dl to initialize its extraction engines on startup
-try {
-    await play.initialize();
-} catch (initError) {
-    console.error('Failed to initialize play-dl engines:', initError.message);
-}
-
 export default async function handler(req, res) {
     // 1. Establish global CORS access
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -31,7 +24,14 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Invalid or unsupported link source.' });
         }
 
-        // 3. Extract the media stream network pointers
+        // 3. Initialize the engines inside the runtime handler to prevent server startup stalls
+        try {
+            await play.initialize();
+        } catch (e) {
+            console.log("Play-dl already initialized or skipped safely.");
+        }
+
+        // 4. Extract the media stream network pointers
         let stream;
         if (format === 'mp3') {
             res.setHeader('Content-Type', 'audio/mpeg');
@@ -43,10 +43,10 @@ export default async function handler(req, res) {
             stream = await play.stream(url, { quality: 1 }); // Standard video and audio profile
         }
 
-        // 4. Pipe data down to user response stream
+        // 5. Pipe data down to user response stream
         stream.stream.pipe(res);
 
-        // 5. Catch internal drops to prevent gateway breaks
+        // 6. Catch internal drops to prevent gateway breaks
         stream.stream.on('error', (err) => {
             console.error('Core Pipeline Stream Drop:', err.message);
             if (!res.headersSent) {
