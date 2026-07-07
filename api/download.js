@@ -1,10 +1,15 @@
 import https from 'https';
 
-// Clean logic to extract the singular 11-character string Video ID from standard YouTube link strings
+// Helper to pull the required YouTube Video ID out of a raw user link string
 function extractVideoId(url) {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
+    if (match && match[2] && match[2].length === 11) {
+        return match[2];
+    }
+    // Fallback if regex picks different array placement
+    const matchFallback = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
+    return matchFallback ? matchFallback[1] : null;
 }
 
 export default async function handler(req, res) {
@@ -20,16 +25,15 @@ export default async function handler(req, res) {
         if (!url) return res.status(400).json({ error: 'URL is required' });
 
         const videoId = extractVideoId(url);
-        if (!videoId) return res.status(400).json({ error: 'Could not extract a valid 11-digit YouTube Video ID from link.' });
+        if (!videoId) return res.status(400).json({ error: 'Could not extract an 11-digit Video ID.' });
 
-        // Query the explicit video specifications mapping parameters matching DataFanatic's endpoints
         const options = {
             hostname: 'youtube-media-downloader.p.rapidapi.com',
             path: `/v2/video/details?videoId=${videoId}`,
             method: 'GET',
             headers: {
                 'x-rapidapi-host': 'youtube-media-downloader.p.rapidapi.com',
-                'x-rapidapi-key': '29acdc973cmshdeac3b02d549dd2p186299jsne660f792939e' // Your validated token
+                'x-rapidapi-key': '29acdc973cmshdeac3b02d549dd2p186299jsne660f792939e'
             }
         };
 
@@ -39,51 +43,59 @@ export default async function handler(req, res) {
             
             apiRes.on('end', () => {
                 try {
+                    // Log out raw response text data into Render server panels for instant tracking
+                    console.log("RAW DATAFANATIC RESPONSE:", body);
                     const data = JSON.parse(body);
                     
-                    // Comprehensive object mapping to find the extraction stream links safely inside DataFanatic's payload tree
                     let downloadLink = null;
 
                     if (format === 'mp3') {
-                        // Locate the highest adaptive bitrate audio tracks
-                        if (data.audios && data.audios.url) {
-                            downloadLink = data.audios.url;
-                        } else if (data.audios && data.audios[0]) {
+                        // Check if audios is an array and extract the first index item URL
+                        if (data.audios && Array.isArray(data.audios) && data.audios.length > 0) {
                             downloadLink = data.audios[0].url || data.audios[0];
-                        }
-                        
-                        if (!downloadLink) {
-                            return res.status(400).json({ error: 'Audio extraction block triggered. No direct MP3 asset layer found.' });
+                        } else if (data.audios && data.audios.url) {
+                            downloadLink = data.audios.url;
+                        } else if (data.audios && typeof data.audios === 'string') {
+                            downloadLink = data.audios;
                         }
                     } else {
-                        // Locate the primary video stream links
-                        if (data.videos && data.videos.url) {
-                            downloadLink = data.videos.url;
-                        } else if (data.videos && data.videos[0]) {
+                        // Check if videos is an array and extract the first index item URL
+                        if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
                             downloadLink = data.videos[0].url || data.videos[0];
-                        }
-
-                        if (!downloadLink) {
-                            return res.status(400).json({ error: 'Video extraction block triggered. No direct MP4 progressive layer found.' });
+                        } else if (data.videos && data.videos.url) {
+                            downloadLink = data.videos.url;
+                        } else if (data.videos && typeof data.videos === 'string') {
+                            downloadLink = data.videos;
                         }
                     }
 
-                    // Return the data directly to the frontend interface
+                    // Fallback to searching formats mapping patterns if specific audio/video keys are missing
+                    if (!downloadLink && data.formats && Array.isArray(data.formats)) {
+                        const targetTrack = format === 'mp3' 
+                            ? data.formats.find(f => f.mimeType && f.mimeType.includes('audio'))
+                            : data.formats.find(f => f.mimeType && f.mimeType.includes('video'));
+                        if (targetTrack) downloadLink = targetTrack.url;
+                    }
+
+                    if (!downloadLink) {
+                        return res.status(400).json({ error: 'Media links found inside data response but mapping values failed.' });
+                    }
+
                     return res.status(200).json({ downloadUrl: downloadLink });
 
                 } catch (e) {
-                    return res.status(500).json({ error: 'Failed to parse JSON response headers from API grid.' });
+                    return res.status(500).json({ error: 'Parsing failure on data formats.' });
                 }
             });
         });
 
         apiRequest.on('error', (error) => {
-            return res.status(500).json({ error: 'RapidAPI service connection timeout.' });
+            return res.status(500).json({ error: 'RapidAPI extraction connection dropped.' });
         });
 
         apiRequest.end();
 
     } catch (error) {
-        return res.status(500).json({ error: 'Internal system gateway breakdown.' });
+        return res.status(500).json({ error: 'Global gateway failure.' });
     }
 }
