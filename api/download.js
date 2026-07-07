@@ -1,5 +1,12 @@
 import play from 'play-dl';
 
+// Force play-dl to initialize its extraction engines on startup
+try {
+    await play.initialize();
+} catch (initError) {
+    console.error('Failed to initialize play-dl engines:', initError.message);
+}
+
 export default async function handler(req, res) {
     // 1. Establish global CORS access
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -18,28 +25,28 @@ export default async function handler(req, res) {
         const { url, format } = req.body;
         if (!url) return res.status(400).json({ error: 'URL is required' });
 
-        // 2. Stream target check validation
+        // 2. Validate the link source
         const videoType = play.yt_validate(url);
         if (!videoType) {
             return res.status(400).json({ error: 'Invalid or unsupported link source.' });
         }
 
-        // 3. Extract the high-speed media stream network pointers
+        // 3. Extract the media stream network pointers
         let stream;
         if (format === 'mp3') {
             res.setHeader('Content-Type', 'audio/mpeg');
             res.setHeader('Content-Disposition', 'attachment; filename="audio.mp3"');
-            stream = await play.stream(url, { quality: 2 }); // High quality audio stream profile
+            stream = await play.stream(url, { quality: 2 }); // High quality audio profile
         } else {
             res.setHeader('Content-Type', 'video/mp4');
             res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
-            stream = await play.stream(url, { quality: 1 }); // Standard video and audio configuration
+            stream = await play.stream(url, { quality: 1 }); // Standard video and audio profile
         }
 
-        // 4. Pipe data straight down to user response stream
+        // 4. Pipe data down to user response stream
         stream.stream.pipe(res);
 
-        // 5. Catch internal drops to prevent 502/500 gateway breaks
+        // 5. Catch internal drops to prevent gateway breaks
         stream.stream.on('error', (err) => {
             console.error('Core Pipeline Stream Drop:', err.message);
             if (!res.headersSent) {
