@@ -225,9 +225,6 @@
 
     let currentFormat = 'mp4';
 
-    // Paste your RapidAPI Key between these quotation marks:
-    const RAPID_API_KEY = "YOUR_RAPIDAPI_KEY_HERE";
-
     mp4Btn.addEventListener('click', () => {
         currentFormat = 'mp4';
         mp4Btn.classList.add('active');
@@ -249,54 +246,46 @@
 
     async function processMedia() {
         const rawUrl = urlInput.value.trim();
-        const qualitySetting = qualitySelect.value;
 
         if (!rawUrl) {
             updateStatus('Please input a valid web link source.', 'error');
             return;
         }
-        
-        if (RAPID_API_KEY === "29acdc973cmshdeac3b02d549dd2p186299jsne660f792939e" || !RAPID_API_KEY) {
-            updateStatus('Missing RapidAPI Key assignment in index.html line 218.', 'error');
-            return;
-        }
 
         goBtn.disabled = true;
-        updateStatus('Requesting conversion from secure residential cluster...', 'info');
+        updateStatus('Connecting to extraction server node...', 'info');
 
         try {
-            const formatParam = currentFormat === 'mp3' ? 'mp3' : qualitySetting;
-            
-            // Fixed clean string concatenation formatting using template literals
-            const endpointUrl = `https://rapidapi.com{encodeURIComponent(rawUrl)}&format=${formatParam}`;
-
-            const response = await fetch(endpointUrl, {
-                method: 'GET',
-                headers: {
-                    'x-rapidapi-key': RAPID_API_KEY,
-                    'x-rapidapi-host': 'youtube-downloader11.p.rapidapi.com'
-                }
+            // Target the relative API path managed securely by server.js
+            const response = await fetch('/api/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: rawUrl, format: currentFormat })
             });
 
             if (!response.ok) {
-                throw new Error('API server rejected payload transaction.');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Server extraction pipeline failed.');
             }
 
             const result = await response.json();
 
-            if (result && result.download_url) {
-                updateStatus('Transfer complete! Opening media file link...', 'success');
+            if (result && result.downloadUrl) {
+                updateStatus('Transfer verified! Opening file...', 'success');
 
-                const link = document.createElement('a');
-                link.href = result.download_url;
-                link.setAttribute('download', '');
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                // Generate browser trigger point to fetch direct file attachment
+                const downloadLink = document.createElement('a');
+                downloadLink.href = result.downloadUrl;
+                downloadLink.setAttribute('download', '');
+                downloadLink.setAttribute('target', '_blank');
+                
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
 
-                updateStatus('Saved to your downloads.', 'success');
+                updateStatus('Saved to your local downloads folder.', 'success');
             } else {
-                throw new Error(result.message || 'The extraction network was unable to parse this media stream.');
+                throw new Error(result.error || 'The system could not parse a valid download stream URL.');
             }
 
         } catch (err) {
@@ -310,5 +299,4 @@
 
 </body>
 </html>
-
 
