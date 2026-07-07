@@ -16,5 +16,6 @@ app.use(express.static(__dirname));
 // Route api payloads over to your handler logic
 app.post('/api/download', handler);
 
-const PORT = process.env.PORT || 3800;
-app.listen(PORT, () => console.log(`Server running smoothly on port ${PORT}`));
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => console.log(`Server blasting off on port ${PORT}`));
+
