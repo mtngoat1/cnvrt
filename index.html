@@ -256,7 +256,6 @@
         updateStatus('Connecting to extraction server node...', 'info');
 
         try {
-            // Target the relative API path managed securely by server.js
             const response = await fetch('/api/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -273,11 +272,17 @@
             if (result && result.downloadUrl) {
                 updateStatus('Transfer verified! Opening file...', 'success');
 
-                // Generate browser trigger point to fetch direct file attachment
+                // Generate a hidden anchor tag to trigger a clean file save
                 const downloadLink = document.createElement('a');
                 downloadLink.href = result.downloadUrl;
-                downloadLink.setAttribute('download', '');
+                
+                // Explicitly define the extension to prevent browser saving it as an HTML container
+                const fileExtension = currentFormat === 'mp3' ? 'mp3' : 'mp4';
+                downloadLink.setAttribute('download', `media_file.${fileExtension}`);
+                
+                // Open the link stream inside an independent tab to isolate the binary asset
                 downloadLink.setAttribute('target', '_blank');
+                downloadLink.setAttribute('rel', 'noopener noreferrer');
                 
                 document.body.appendChild(downloadLink);
                 downloadLink.click();
