@@ -225,7 +225,7 @@
 
     let currentFormat = 'mp4';
 
-    // Paste your RapidAPI Key here inside the quotes:
+    // Paste your RapidAPI Key between these quotation marks:
     const RAPID_API_KEY = "YOUR_RAPIDAPI_KEY_HERE";
 
     mp4Btn.addEventListener('click', () => {
@@ -256,36 +256,36 @@
             return;
         }
         
-        if (RAPID_API_KEY === "29acdc973cmshdeac3b02d549dd2p186299jsne660f792939e") {
-            updateStatus('Missing RapidAPI Key assignment in the script code.', 'error');
+        if (RAPID_API_KEY === "29acdc973cmshdeac3b02d549dd2p186299jsne660f792939e" || !RAPID_API_KEY) {
+            updateStatus('Missing RapidAPI Key assignment in index.html line 218.', 'error');
             return;
         }
 
         goBtn.disabled = true;
-        updateStatus('Requesting conversion from secure residential node...', 'info');
+        updateStatus('Requesting conversion from secure residential cluster...', 'info');
 
         try {
-            // Determine the precise format query parameter required by NoTube
             const formatParam = currentFormat === 'mp3' ? 'mp3' : qualitySetting;
+            
+            // Fixed clean string concatenation formatting using template literals
+            const endpointUrl = `https://rapidapi.com{encodeURIComponent(rawUrl)}&format=${formatParam}`;
 
-            // Hit the residential scraping cluster directly
-            const response = await fetch(`https://rapidapi.com{encodeURIComponent(rawUrl)}&format=${formatParam}`, {
+            const response = await fetch(endpointUrl, {
                 method: 'GET',
                 headers: {
                     'x-rapidapi-key': RAPID_API_KEY,
-                    'x-rapidapi-host': '://rapidapi.com'
+                    'x-rapidapi-host': 'youtube-downloader11.p.rapidapi.com'
                 }
             });
 
             if (!response.ok) {
-                throw new Error('API engine rejected payload connection.');
+                throw new Error('API server rejected payload transaction.');
             }
 
             const result = await response.json();
 
-            // Verify and extract the direct asset storage URL returned by the host
             if (result && result.download_url) {
-                updateStatus('Conversion ready! Transferring file down to browser...', 'success');
+                updateStatus('Transfer complete! Opening media file link...', 'success');
 
                 const link = document.createElement('a');
                 link.href = result.download_url;
@@ -294,9 +294,9 @@
                 link.click();
                 document.body.removeChild(link);
 
-                updateStatus('Saved to your local downloads folder.', 'success');
+                updateStatus('Saved to your downloads.', 'success');
             } else {
-                throw new Error(result.message || 'The proxy network was unable to parse this link currently.');
+                throw new Error(result.message || 'The extraction network was unable to parse this media stream.');
             }
 
         } catch (err) {
@@ -310,4 +310,5 @@
 
 </body>
 </html>
+
 
