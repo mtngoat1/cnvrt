@@ -4,7 +4,7 @@ function extractVideoId(url) {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
     if (match && match.length === 11) {
-        return match;
+        return match[2]; // Safely isolates the 11-digit string ID
     }
     const fallbackMatch = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
     return fallbackMatch ? fallbackMatch[1] : null;
@@ -45,24 +45,22 @@ export default async function handler(req, res) {
                     let finalDownloadUrl = null;
 
                     if (format === 'mp3') {
-                        // DataFanatic returns an array list of available audio profiles
+                        // Correctly query index 0 inside DataFanatic's audios array
                         if (data.audios && Array.isArray(data.audios) && data.audios.length > 0) {
-                            // Safely select the first high-quality audio url track inside the list index
-                            finalDownloadUrl = data.audios[0].url;
+                            finalDownloadUrl = data.audios[0].url; 
                         } else if (data.audios && data.audios.url) {
                             finalDownloadUrl = data.audios.url;
                         }
                     } else {
-                        // DataFanatic returns an array list of available video profiles
+                        // Correctly query index 0 inside DataFanatic's videos array
                         if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
-                            // Safely select the first stable mp4 progressive stream link in the list index
-                            finalDownloadUrl = data.videos[0].url;
+                            finalDownloadUrl = data.videos[0].url; 
                         } else if (data.videos && data.videos.url) {
                             finalDownloadUrl = data.videos.url;
                         }
                     }
 
-                    // Deep format tree scan backup if shortcut keys are changed
+                    // Deep format tree scan fallback if structure varies
                     if (!finalDownloadUrl && data.formats && Array.isArray(data.formats)) {
                         const fallBackTrack = format === 'mp3'
                             ? data.formats.find(f => f.mimeType && f.mimeType.includes('audio'))
@@ -71,7 +69,7 @@ export default async function handler(req, res) {
                     }
 
                     if (!finalDownloadUrl) {
-                        return res.status(400).json({ error: 'Media links located inside array elements, but the layout requires index mapping profiles.' });
+                        return res.status(400).json({ error: 'Unable to extract the stream URL from the data array.' });
                     }
 
                     return res.status(200).json({ downloadUrl: finalDownloadUrl });
