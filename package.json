@@ -1,0 +1,13 @@
+{
+  "name": "cnvrt",
+  "version": "1.0.0",
+  "description": "Media transfer tool",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@distube/ytdl-core": "^4.15.8"
+  }
+}
