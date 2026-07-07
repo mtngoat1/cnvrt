@@ -1,6 +1,5 @@
 import https from 'https';
 
-// Safely isolates the required 11-character Video ID from any standard YouTube URL string
 function extractVideoId(url) {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
@@ -12,7 +11,6 @@ function extractVideoId(url) {
 }
 
 export default async function handler(req, res) {
-    // 1. Enforce secure cross-origin handshakes
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -27,14 +25,13 @@ export default async function handler(req, res) {
         const videoId = extractVideoId(url);
         if (!videoId) return res.status(400).json({ error: 'Could not resolve a valid 11-digit YouTube ID.' });
 
-        // 2. Map path strings precisely to DataFanatic's endpoint specifications
         const options = {
             hostname: 'youtube-media-downloader.p.rapidapi.com',
             path: `/v2/video/details?videoId=${videoId}`,
             method: 'GET',
             headers: {
                 'x-rapidapi-host': 'youtube-media-downloader.p.rapidapi.com',
-                'x-rapidapi-key': '29acdc973cmshdeac3b02d549dd2p186299jsne660f792939e' // Your master credential key
+                'x-rapidapi-key': '29acdc973cmshdeac3b02d549dd2p186299jsne660f792939e'
             }
         };
 
@@ -45,35 +42,40 @@ export default async function handler(req, res) {
             apiRes.on('end', () => {
                 try {
                     const data = JSON.parse(body);
+
+                    // Catch explicit API-level error flags before processing download links
+                    if (data.status === false || data.msg) {
+                        return res.status(400).json({ error: data.msg || 'The video link could not be parsed by the extraction nodes.' });
+                    }
+                    
                     let finalDownloadUrl = null;
 
-                    // 3. Drill down cleanly into DataFanatic's exact formats matrix tree
                     if (format === 'mp3') {
-                        // Locate adaptive high-bitrate audio tokens safely
+                        // DataFanatic provides an array of multiple audio tracks inside data.audios
                         if (data.audios && Array.isArray(data.audios) && data.audios.length > 0) {
-                            finalDownloadUrl = data.audios[0].url;
+                            // Extract the URL from the highest available quality track index
+                            finalDownloadUrl = data.audios[0].url || data.audios[0];
                         } else if (data.audios && data.audios.url) {
                             finalDownloadUrl = data.audios.url;
                         }
                     } else {
-                        // Locate regular progressive mp4 streaming video layers
+                        // DataFanatic provides progressive video tracks inside data.videos
                         if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
-                            finalDownloadUrl = data.videos[0].url;
+                            finalDownloadUrl = data.videos[0].url || data.videos[0];
                         } else if (data.videos && data.videos.url) {
                             finalDownloadUrl = data.videos.url;
                         }
                     }
 
-                    // Fallback to checking core streaming blocks if primary shortcuts are absent
-                    if (!finalDownloadUrl && data.videos) {
-                        finalDownloadUrl = data.videos.url || data.videos;
+                    // Global backup map check if array shortcut nodes are modified
+                    if (!finalDownloadUrl && data.url) {
+                        finalDownloadUrl = data.url;
                     }
 
                     if (!finalDownloadUrl) {
-                        return res.status(400).json({ error: 'Video fetched, but direct download parameters are unavailable.' });
+                        return res.status(400).json({ error: 'Media asset metadata fetched successfully, but direct file stream endpoints are locked.' });
                     }
 
-                    // 4. Return clean parameter payload mapping down to index.html
                     return res.status(200).json({ downloadUrl: finalDownloadUrl });
 
                 } catch (e) {
