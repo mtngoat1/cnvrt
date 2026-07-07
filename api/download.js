@@ -1,6 +1,6 @@
 import https from 'https';
 
-// Helper to pull the required YouTube Video ID out of a raw user link
+// Clean logic to extract the singular 11-character string Video ID from standard YouTube link strings
 function extractVideoId(url) {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
@@ -20,16 +20,16 @@ export default async function handler(req, res) {
         if (!url) return res.status(400).json({ error: 'URL is required' });
 
         const videoId = extractVideoId(url);
-        if (!videoId) return res.status(400).json({ error: 'Could not extract YouTube Video ID from link.' });
+        if (!videoId) return res.status(400).json({ error: 'Could not extract a valid 11-digit YouTube Video ID from link.' });
 
-        // Build the correct media-processing request string matching DataFanatic's spec
+        // Query the explicit video specifications mapping parameters matching DataFanatic's endpoints
         const options = {
             hostname: 'youtube-media-downloader.p.rapidapi.com',
-            path: `/v2/video/details?videoId=${videoId}&urlAccess=normal&videos=auto&audios=auto`,
+            path: `/v2/video/details?videoId=${videoId}`,
             method: 'GET',
             headers: {
                 'x-rapidapi-host': 'youtube-media-downloader.p.rapidapi.com',
-                'x-rapidapi-key': '29acdc973cmshdeac3b02d549dd2p186299jsne660f792939e' // Your master token
+                'x-rapidapi-key': '29acdc973cmshdeac3b02d549dd2p186299jsne660f792939e' // Your validated token
             }
         };
 
@@ -41,30 +41,49 @@ export default async function handler(req, res) {
                 try {
                     const data = JSON.parse(body);
                     
+                    // Comprehensive object mapping to find the extraction stream links safely inside DataFanatic's payload tree
+                    let downloadLink = null;
+
                     if (format === 'mp3') {
-                        // Extract the high-bitrate audio link array from the response object
-                        const audioLink = data.audios && data.audios[0] ? data.audios[0].url : null;
-                        if (!audioLink) return res.status(400).json({ error: 'Audio stream unavailable for this track.' });
-                        return res.status(200).json({ downloadUrl: audioLink });
+                        // Locate the highest adaptive bitrate audio tracks
+                        if (data.audios && data.audios.url) {
+                            downloadLink = data.audios.url;
+                        } else if (data.audios && data.audios[0]) {
+                            downloadLink = data.audios[0].url || data.audios[0];
+                        }
+                        
+                        if (!downloadLink) {
+                            return res.status(400).json({ error: 'Audio extraction block triggered. No direct MP3 asset layer found.' });
+                        }
                     } else {
-                        // Extract the primary progressive MP4 video video link stream
-                        const videoLink = data.videos && data.videos[0] ? data.videos[0].url : null;
-                        if (!videoLink) return res.status(400).json({ error: 'Video stream unavailable at this resolution.' });
-                        return res.status(200).json({ downloadUrl: videoLink });
+                        // Locate the primary video stream links
+                        if (data.videos && data.videos.url) {
+                            downloadLink = data.videos.url;
+                        } else if (data.videos && data.videos[0]) {
+                            downloadLink = data.videos[0].url || data.videos[0];
+                        }
+
+                        if (!downloadLink) {
+                            return res.status(400).json({ error: 'Video extraction block triggered. No direct MP4 progressive layer found.' });
+                        }
                     }
+
+                    // Return the data directly to the frontend interface
+                    return res.status(200).json({ downloadUrl: downloadLink });
+
                 } catch (e) {
-                    return res.status(500).json({ error: 'Failed to parse media token headers.' });
+                    return res.status(500).json({ error: 'Failed to parse JSON response headers from API grid.' });
                 }
             });
         });
 
         apiRequest.on('error', (error) => {
-            return res.status(500).json({ error: 'RapidAPI gateway timeout.' });
+            return res.status(500).json({ error: 'RapidAPI service connection timeout.' });
         });
 
         apiRequest.end();
 
     } catch (error) {
-        return res.status(500).json({ error: 'Internal server breakdown.' });
+        return res.status(500).json({ error: 'Internal system gateway breakdown.' });
     }
 }
