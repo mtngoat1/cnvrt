@@ -1,7 +1,7 @@
 import ytdl from '@distube/ytdl-core';
 
 export default async function handler(req, res) {
-    // Enable CORS headers so your frontend can talk to it safely
+    // 1. Enable Global CORS Handshakes
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -18,28 +18,47 @@ export default async function handler(req, res) {
         const { url, format, quality } = req.body;
         if (!url) return res.status(400).json({ error: 'URL is required' });
 
-        // Select the correct format profile matching your UI selection
+        // 2. Select the formatting rule matching your front-end choices
         const filterOption = format === 'mp3' ? 'audioonly' : 'videoandaudio';
         
-        // Target an appropriate resolution tier based on the user's choice
         let qualitySetting = 'highest';
         if (format === 'mp4') {
-            if (quality === '720') qualitySetting = '136'; // 720p hook
-            if (quality === '480') qualitySetting = '135'; // 480p hook
+            if (quality === '720') qualitySetting = '136'; 
+            if (quality === '480') qualitySetting = '135'; 
         }
 
-        // Set response headers to trigger your frontend's blob/stream downloader
+        // 3. Define Response Headers for Blob Streaming
         res.setHeader('Content-Type', format === 'mp3' ? 'audio/mpeg' : 'video/mp4');
         res.setHeader('Content-Disposition', `attachment; filename="download.${format}"`);
 
-        // Pipe the live stream straight from the cloud engine down to the user's machine
-        ytdl(url, { 
+        // 4. Safely initialize stream pipelines
+        const stream = ytdl(url, { 
             filter: filterOption, 
-            quality: qualitySetting 
-        }).pipe(res);
+            quality: qualitySetting,
+            requestOptions: {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9'
+                }
+            }
+        });
+
+        // 5. Connect stream straight to downstream response
+        stream.pipe(res);
+
+        // 6. Handle internal pipeline breakages to prevent 502 server crashes
+        stream.on('error', (err) => {
+            console.error('YTDL Stream Error:', err.message);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Streaming pipeline crashed.' });
+            }
+        });
 
     } catch (error) {
-        console.error(error);
-        return res.status(500).json({ error: 'Failed to extract video data.' });
+        console.error('Global Handler Error:', error.message);
+        if (!res.headersSent) {
+            return res.status(500).json({ error: 'Failed to extract video data.' });
+        }
     }
 }
