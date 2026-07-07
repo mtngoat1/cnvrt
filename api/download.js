@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
         const options = {
             hostname: 'youtube-media-downloader.p.rapidapi.com',
-            path: `/v2/video/details?videoId=${videoId}`,
+            path: `/v2/video/details?videoId=${videoId}&urlAccess=normal&videos=auto&audios=auto`,
             method: 'GET',
             headers: {
                 'x-rapidapi-host': 'youtube-media-downloader.p.rapidapi.com',
