@@ -3,8 +3,8 @@ import https from 'https';
 function extractVideoId(url) {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
-    if (match && match[2] && match[2].length === 11) {
-        return match[2];
+    if (match && match.length === 11) {
+        return match;
     }
     const fallbackMatch = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
     return fallbackMatch ? fallbackMatch[1] : null;
@@ -42,38 +42,36 @@ export default async function handler(req, res) {
             apiRes.on('end', () => {
                 try {
                     const data = JSON.parse(body);
-
-                    // Catch explicit API-level error flags before processing download links
-                    if (data.status === false || data.msg) {
-                        return res.status(400).json({ error: data.msg || 'The video link could not be parsed by the extraction nodes.' });
-                    }
-                    
                     let finalDownloadUrl = null;
 
                     if (format === 'mp3') {
-                        // DataFanatic provides an array of multiple audio tracks inside data.audios
+                        // DataFanatic returns an array list of available audio profiles
                         if (data.audios && Array.isArray(data.audios) && data.audios.length > 0) {
-                            // Extract the URL from the highest available quality track index
-                            finalDownloadUrl = data.audios[0].url || data.audios[0];
+                            // Safely select the first high-quality audio url track inside the list index
+                            finalDownloadUrl = data.audios[0].url;
                         } else if (data.audios && data.audios.url) {
                             finalDownloadUrl = data.audios.url;
                         }
                     } else {
-                        // DataFanatic provides progressive video tracks inside data.videos
+                        // DataFanatic returns an array list of available video profiles
                         if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
-                            finalDownloadUrl = data.videos[0].url || data.videos[0];
+                            // Safely select the first stable mp4 progressive stream link in the list index
+                            finalDownloadUrl = data.videos[0].url;
                         } else if (data.videos && data.videos.url) {
                             finalDownloadUrl = data.videos.url;
                         }
                     }
 
-                    // Global backup map check if array shortcut nodes are modified
-                    if (!finalDownloadUrl && data.url) {
-                        finalDownloadUrl = data.url;
+                    // Deep format tree scan backup if shortcut keys are changed
+                    if (!finalDownloadUrl && data.formats && Array.isArray(data.formats)) {
+                        const fallBackTrack = format === 'mp3'
+                            ? data.formats.find(f => f.mimeType && f.mimeType.includes('audio'))
+                            : data.formats.find(f => f.mimeType && f.mimeType.includes('video'));
+                        if (fallBackTrack) finalDownloadUrl = fallBackTrack.url;
                     }
 
                     if (!finalDownloadUrl) {
-                        return res.status(400).json({ error: 'Media asset metadata fetched successfully, but direct file stream endpoints are locked.' });
+                        return res.status(400).json({ error: 'Media links located inside array elements, but the layout requires index mapping profiles.' });
                     }
 
                     return res.status(200).json({ downloadUrl: finalDownloadUrl });
