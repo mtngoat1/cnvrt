@@ -44,21 +44,19 @@ export default async function handler(req, res) {
                     const data = JSON.parse(body);
                     let finalDownloadUrl = null;
 
-                    if (format === 'mp3') {
-                        // Correctly query index 0 inside DataFanatic's audios array
-                        if (data.audios && Array.isArray(data.audios) && data.audios.length > 0) {
-                            finalDownloadUrl = data.audios[0].url; 
-                        } else if (data.audios && data.audios.url) {
-                            finalDownloadUrl = data.audios.url;
-                        }
-                    } else {
-                        // Correctly query index 0 inside DataFanatic's videos array
-                        if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
-                            finalDownloadUrl = data.videos[0].url; 
-                        } else if (data.videos && data.videos.url) {
-                            finalDownloadUrl = data.videos.url;
-                        }
-                    }
+                 if (format === 'mp3') {
+    if (data.audios && Array.isArray(data.audios) && data.audios.length > 0) {
+        finalDownloadUrl = data.audios[0].url; // Added [0] here
+    } else if (data.audios && data.audios.url) {
+        finalDownloadUrl = data.audios.url;
+    }
+} else {
+    if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
+        finalDownloadUrl = data.videos[0].url; // Added [0] here
+    } else if (data.videos && data.videos.url) {
+        finalDownloadUrl = data.videos.url;
+    }
+}
 
                     // Deep format tree scan fallback if structure varies
                     if (!finalDownloadUrl && data.formats && Array.isArray(data.formats)) {
