@@ -1,7 +1,7 @@
-import ytdl from '@distube/ytdl-core';
+import play from 'play-dl';
 
 export default async function handler(req, res) {
-    // 1. Enable Global CORS Handshakes
+    // 1. Establish global CORS access
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -15,50 +15,42 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { url, format, quality } = req.body;
+        const { url, format } = req.body;
         if (!url) return res.status(400).json({ error: 'URL is required' });
 
-        // 2. Select the formatting rule matching your front-end choices
-        const filterOption = format === 'mp3' ? 'audioonly' : 'videoandaudio';
-        
-        let qualitySetting = 'highest';
-        if (format === 'mp4') {
-            if (quality === '720') qualitySetting = '136'; 
-            if (quality === '480') qualitySetting = '135'; 
+        // 2. Stream target check validation
+        const videoType = play.yt_validate(url);
+        if (!videoType) {
+            return res.status(400).json({ error: 'Invalid or unsupported link source.' });
         }
 
-        // 3. Define Response Headers for Blob Streaming
-        res.setHeader('Content-Type', format === 'mp3' ? 'audio/mpeg' : 'video/mp4');
-        res.setHeader('Content-Disposition', `attachment; filename="download.${format}"`);
+        // 3. Extract the high-speed media stream network pointers
+        let stream;
+        if (format === 'mp3') {
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Content-Disposition', 'attachment; filename="audio.mp3"');
+            stream = await play.stream(url, { quality: 2 }); // High quality audio stream profile
+        } else {
+            res.setHeader('Content-Type', 'video/mp4');
+            res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
+            stream = await play.stream(url, { quality: 1 }); // Standard video and audio configuration
+        }
 
-        // 4. Safely initialize stream pipelines
-        const stream = ytdl(url, { 
-            filter: filterOption, 
-            quality: qualitySetting,
-            requestOptions: {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.9'
-                }
-            }
-        });
+        // 4. Pipe data straight down to user response stream
+        stream.stream.pipe(res);
 
-        // 5. Connect stream straight to downstream response
-        stream.pipe(res);
-
-        // 6. Handle internal pipeline breakages to prevent 502 server crashes
-        stream.on('error', (err) => {
-            console.error('YTDL Stream Error:', err.message);
+        // 5. Catch internal drops to prevent 502/500 gateway breaks
+        stream.stream.on('error', (err) => {
+            console.error('Core Pipeline Stream Drop:', err.message);
             if (!res.headersSent) {
-                res.status(500).json({ error: 'Streaming pipeline crashed.' });
+                res.status(500).json({ error: 'Media conversion pipeline disconnected.' });
             }
         });
 
     } catch (error) {
-        console.error('Global Handler Error:', error.message);
+        console.error('Global Processor Exception:', error.message);
         if (!res.headersSent) {
-            return res.status(500).json({ error: 'Failed to extract video data.' });
+            return res.status(500).json({ error: 'Internal extraction server fault.' });
         }
     }
 }
